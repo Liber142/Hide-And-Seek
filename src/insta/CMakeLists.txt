@@ -140,6 +140,8 @@ function(insta_patch_server)
       gamemodes/vanilla/dm/sql_columns.h
       gamemodes/vanilla/fly/fly.cpp
       gamemodes/vanilla/fly/fly.h
+      gamemodes/vanilla/hide_and_seek/hide_and_seek.cpp
+      gamemodes/vanilla/hide_and_seek/hide_and_seek.h
       gamemodes/vanilla/tsmash/tsmash.cpp
       gamemodes/vanilla/tsmash/tsmash.h
       ip_storage.cpp

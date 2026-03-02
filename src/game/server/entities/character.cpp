@@ -1243,6 +1243,9 @@ bool CCharacter::IsSnappingCharacterInView(int SnappingClientId)
 void CCharacter::Snap(int SnappingClient)
 {
 	int Id = m_pPlayer->GetCid();
+	
+	if(NetworkClipped(SnappingClient))
+		return;
 
 	if(!Server()->Translate(Id, SnappingClient))
 		return;
