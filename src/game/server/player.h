@@ -90,10 +90,6 @@ public:
 
 	bool m_IsReady;
 
-	//hide and seek
-	int m_Hide = 0;
-	bool m_Seeker = false;
-
 	//
 	int m_Vote;
 	int m_VotePos;
