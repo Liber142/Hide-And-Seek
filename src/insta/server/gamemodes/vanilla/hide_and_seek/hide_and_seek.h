@@ -30,20 +30,17 @@ public:
 	void HandleCharacterTiles(class CCharacter *pChr, int MapIndex) override;
 	bool ForceNetworkClipping(const CEntity *pEntity, int SnappingClient, vec2 CheckPos) override;
 private:
-	int m_AbilityCoolDown;
 
 	int m_CurTime;
 
-	int m_SeekerId = -1; //TODO: In future we need one more seekers
+	std::vector<int> m_vSeekerIds; //TODO: In future we need one more seekers
 	
 	int m_StartStartingTick;
 	int m_StartingTime; // TODO: Move in to Config();
 	
 	int m_StartCountigTick;
-	int m_CountingTime; // TODO: Move in to Config();
 	
 	int m_StartRoundTick;
-	int m_RoundTime; //TODO: Move in to Config();
 	void StartRound();
 	void EndRound();
 	bool DoEndRound();

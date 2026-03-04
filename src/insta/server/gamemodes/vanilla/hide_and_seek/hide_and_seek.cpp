@@ -4,6 +4,8 @@
 
 #include <engine/shared/config.h>
 
+#include <insta/server/entities/ddnet_pvp/vanilla_projectile.h>
+
 #include <game/mapitems.h>
 #include <game/server/entities/character.h>
 #include <game/server/gamecontext.h>
@@ -29,10 +31,7 @@ CGameControllerHideAndSeek::CGameControllerHideAndSeek(CGameContext *pGameServer
 	m_pSqlStats->SetExtraColumns(m_pExtraColumns);
 	m_pSqlStats->CreateTable(m_pStatsTable);
 
-	m_CountingTime = 5;
 	m_StartingTime = 10;
-	m_RoundTime = 180;
-	m_AbilityCoolDown = 10;
 }
 
 CGameControllerHideAndSeek::~CGameControllerHideAndSeek() = default;
@@ -69,7 +68,7 @@ void CGameControllerHideAndSeek::Tick()
 	{
 		if(((Server()->Tick() - m_StartStartingTick) * Server()->TickSpeed()) >= m_StartingTime)
 		{
-			MakeRandomSeeker(1); //TODO: move to Config();
+			MakeRandomSeeker(Config()->m_SvNumSeekers);
 
 			KillAllPlayers();
 			m_StartCountigTick = Server()->Tick();
@@ -78,17 +77,24 @@ void CGameControllerHideAndSeek::Tick()
 	}
 	if(m_GameState == COUNTING)
 	{
-		CPlayer *pSeaker = GameServer()->m_apPlayers[m_SeekerId];
-		if(pSeaker && pSeaker->GetCharacter() && pSeaker->GetCharacter()->m_FreezeTime <= 0)
+		for(const int &SeekerId : m_vSeekerIds)
 		{
-			pSeaker->GetCharacter()->SetDeepFrozen(true);
-				
+			CPlayer *pSeaker = GameServer()->m_apPlayers[SeekerId];
+			if(pSeaker && pSeaker->GetCharacter())
+			{
+				pSeaker->GetCharacter()->SetDeepFrozen(true);
+					
+			}
 		}
 
-		if((Server()->Tick() - m_StartCountigTick) / Server()->TickSpeed() >= m_CountingTime)
+		if((Server()->Tick() - m_StartCountigTick) / Server()->TickSpeed() >= Config()->m_SvCountingTime)
 		{
-			if(pSeaker && pSeaker->GetCharacter())
-				pSeaker->GetCharacter()->SetDeepFrozen(false);
+			for(const int &SeekerId : m_vSeekerIds)
+			{
+				CPlayer *pSeaker = GameServer()->m_apPlayers[SeekerId];
+				if(pSeaker && pSeaker->GetCharacter())
+					pSeaker->GetCharacter()->SetDeepFrozen(false);
+			}
 			m_StartRoundTick = Server()->Tick();
 			m_GameState = RUNNING;
 		}
@@ -122,10 +128,10 @@ void CGameControllerHideAndSeek::Tick()
 				Seconds = m_StartingTime - (Server()->Tick() - m_StartStartingTick) / Server()->TickSpeed(); 
 				break;
 			case COUNTING: 
-				Seconds = m_CountingTime - (Server()->Tick() - m_StartCountigTick) / Server()->TickSpeed(); 
+				Seconds = Config()->m_SvCountingTime - (Server()->Tick() - m_StartCountigTick) / Server()->TickSpeed(); 
 				break;
 			case RUNNING: 
-				Seconds = m_RoundTime - (Server()->Tick() - m_StartRoundTick) / Server()->TickSpeed(); 
+				Seconds = Config()->m_SvRoundTime - (Server()->Tick() - m_StartRoundTick) / Server()->TickSpeed(); 
 				break;
 			default: return;
 		}
@@ -162,7 +168,7 @@ void CGameControllerHideAndSeek::EndRound()
 		if(!pPlayer)
 			continue;
 
-		if((Server()->Tick() - m_StartRoundTick) >= (m_RoundTime * Server()->TickSpeed()))
+		if((Server()->Tick() - m_StartRoundTick) >= (Config()->m_SvRoundTime * Server()->TickSpeed()))
 		{
 			if(pPlayer->IsPlaying() && !pPlayer->m_Seeker)
 				pPlayer->IncrementScore();
@@ -179,7 +185,8 @@ void CGameControllerHideAndSeek::EndRound()
 		{
 			pPlayer->m_Seeker = false;
 			pPlayer->m_LastUseAbilityTick = 0;
-		}
+		} 
+	m_vSeekerIds.clear();
 }
 
 bool CGameControllerHideAndSeek::DoEndRound()
@@ -193,7 +200,7 @@ bool CGameControllerHideAndSeek::DoEndRound()
 		return true;
 	}
 
-	if((Server()->Tick() - m_StartRoundTick) >= (m_RoundTime * Server()->TickSpeed()))
+	if((Server()->Tick() - m_StartRoundTick) >= (Config()->m_SvRoundTime * Server()->TickSpeed()))
 	{
 		return true;
 	}
@@ -274,17 +281,19 @@ bool CGameControllerHideAndSeek::OnFireWeapon(CCharacter &Character, int &Weapon
 {
 	if(Weapon == WEAPON_GUN && Character.GetPlayer() && !Character.GetPlayer()->m_Seeker)
 	{
-		if(Character.GetPlayer() && Server()->Tick() - Character.GetPlayer()->m_LastUseAbilityTick < m_AbilityCoolDown * Server()->TickSpeed())
+		if(Character.GetPlayer() && Server()->Tick() - Character.GetPlayer()->m_LastUseAbilityTick < Config()->m_SvAbilityCoolDown * Server()->TickSpeed())
 			return CGameControllerBasePvp::OnFireWeapon(Character, Weapon, Direction, MouseTarget, ProjStartPos);
 		Character.GetPlayer()->m_HideTime = 3 * Server()->TickSpeed();
 		GameServer()->CreateSound(Character.GetPos(), SOUND_PLAYER_PAIN_LONG);
 		Character.GetPlayer()->m_LastUseAbilityTick = Server()->Tick();
+		return false;
 	}
 
 	if(Weapon == WEAPON_GUN && Character.GetPlayer() && Character.GetPlayer()->m_Seeker)
 	{
-		if(Character.GetPlayer() && Server()->Tick() - Character.GetPlayer()->m_LastUseAbilityTick < m_AbilityCoolDown * Server()->TickSpeed())
+		if(Character.GetPlayer() && Server()->Tick() - Character.GetPlayer()->m_LastUseAbilityTick < Config()->m_SvAbilityCoolDown * Server()->TickSpeed())
 			return CGameControllerBasePvp::OnFireWeapon(Character, Weapon, Direction, MouseTarget, ProjStartPos);
+		
 		CPlayer *pClosest = nullptr;
 		float MinDist = 999999.0f;
 		vec2 Pos = Character.GetPos();
@@ -306,7 +315,31 @@ bool CGameControllerHideAndSeek::OnFireWeapon(CCharacter &Character, int &Weapon
 		{
 			GameServer()->CreatePlayerSpawn(pClosest->GetCharacter()->GetPos());
 			GameServer()->CreateSound(pClosest->GetCharacter()->GetPos(), SOUND_NINJA_FIRE);
+			
+			vec2 TargetPos = pClosest->GetCharacter()->GetPos();
+			vec2 NewDirection = normalize(TargetPos - ProjStartPos);
+			
+			int Lifetime = (int)(Server()->TickSpeed() * Character.GetTuning(Character.m_TuneZone)->m_GunLifetime);
+			
+			new CVanillaProjectile(
+				Character.GameWorld(),
+				WEAPON_GUN,
+				Character.GetPlayer()->GetCid(),
+				ProjStartPos,
+				NewDirection,
+				Lifetime,
+				false,
+				false,
+				-1,
+				NewDirection
+			);
+			
 			Character.GetPlayer()->m_LastUseAbilityTick = Server()->Tick();
+			return true;
+		}
+		else
+		{
+			return CGameControllerBasePvp::OnFireWeapon(Character, Weapon, Direction, MouseTarget, ProjStartPos);
 		}
 	}
 
@@ -400,7 +433,7 @@ void CGameControllerHideAndSeek::MakeRandomSeeker(int Count)
 	for(int i = 0; i < Count; i++)
 	{
 		GameServer()->m_apPlayers[aPlayingIds[i]]->m_Seeker = true;
-		m_SeekerId = aPlayingIds[i];
+		m_vSeekerIds.emplace_back(aPlayingIds[i]);
 	}
 }
 

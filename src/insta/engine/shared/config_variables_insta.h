@@ -8,6 +8,12 @@
 #define MACRO_CONFIG_STR(Name, ScriptName, Len, Def, Save, Desc) ;
 #endif
 
+//hide and seek
+MACRO_CONFIG_INT(SvNumSeekers, sv_num_seeker, 1, 0, 63, CFGFLAG_SERVER, "Number a seekers in game")
+MACRO_CONFIG_INT(SvRoundTime, sv_round_time, 300, 0, 3600, CFGFLAG_SERVER, "How many time in seconds play one round")
+MACRO_CONFIG_INT(SvCountingTime, sv_counting_time, 20, 0, 3600, CFGFLAG_SERVER, "How many time in seconds seeker count before start seek")
+MACRO_CONFIG_INT(SvAbilityCoolDown, sv_ability_cool_down, 10, 0, 3600, CFGFLAG_SERVER, "How many time in seconds ability will be restore")
+
 MACRO_CONFIG_INT(SvSpectatorVotes, sv_spectator_votes, 0, 0, 1, CFGFLAG_SAVE | CFGFLAG_SERVER, "Allow spectators to vote")
 MACRO_CONFIG_INT(SvSpectatorVotesSixup, sv_spectator_votes_sixup, 0, 0, 1, CFGFLAG_SAVE | CFGFLAG_SERVER, "Allow 0.7 players to vote as spec if sv_spectator_vote is 1 (hacky dead spec)")
 MACRO_CONFIG_INT(SvBangCommands, sv_bang_commands, 2, -1, 2, CFGFLAG_SAVE | CFGFLAG_SERVER, "chat cmds like !1vs1 -1=fully gone 0=off with error 1=read only no votes 2=all commands")
