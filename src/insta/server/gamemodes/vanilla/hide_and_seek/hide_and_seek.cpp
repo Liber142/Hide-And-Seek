@@ -51,6 +51,22 @@ void CGameControllerHideAndSeek::OnInit()
 
 void CGameControllerHideAndSeek::Tick()
 {
+	for(CPlayer *pPlayer : GameServer()->m_apPlayers)
+	{
+		if(!pPlayer)
+			continue;
+
+		SetSkin(pPlayer);
+
+		if(!pPlayer->GetCharacter())
+			continue;
+
+		const float TotalTicks = Server()->TickSpeed() * Config()->m_SvAbilityCoolDown;
+		const int PassedTicks = Server()->Tick() - pPlayer->m_LastUseAbilityTick;
+		const int Armor = static_cast<int>(std::ceil((PassedTicks / TotalTicks) * 10.0f));
+		pPlayer->GetCharacter()->SetArmor(Armor);
+	}
+
 	if(m_GameState == WAITING)
 	{
 		int CountPlayer = 0;
@@ -215,8 +231,6 @@ void CGameControllerHideAndSeek::HidePlayers()
 		if(!pPlayer)
 			continue;
 
-		SetSkin(pPlayer);
-
 		if(pPlayer->m_HideTime > 0)
 		{
 			if(pPlayer->GetCharacter())
@@ -271,6 +285,18 @@ void CGameControllerHideAndSeek::SetSkin(CPlayer *pPlayer)
 	if(pPlayer->m_Hiden)
 	{
 		pPlayer->m_SkinInfoManager.SetSkinName(ESkinPrio::HIGH, "ghost");
+		return;
+	}
+
+	if(pPlayer->m_Seeker)
+	{
+		pPlayer->m_SkinInfoManager.SetSkinName(ESkinPrio::HIGH, "wartee");
+		return;
+	}
+
+	if(pPlayer->IsPaused())
+	{
+		pPlayer->m_SkinInfoManager.SetSkinName(ESkinPrio::HIGH, "x_spec");
 		return;
 	}
 
