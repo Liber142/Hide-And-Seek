@@ -142,7 +142,11 @@ void CGameControllerHideAndSeek::Tick()
 	m_CurTime = Server()->Tick() / Server()->TickSpeed();
 
 	if(IsTimeInterval(1))
-	{
+		DisplayBroadcast();
+}
+
+void CGameControllerHideAndSeek::DisplayBroadcast()
+{
 		if(m_GameState == WAITING)
 			GameServer()->SendBroadcast("Waiting others                                                                                                        ", -1);
 		int Seconds;
