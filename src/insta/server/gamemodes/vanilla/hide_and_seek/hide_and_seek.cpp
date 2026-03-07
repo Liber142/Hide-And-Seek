@@ -182,7 +182,6 @@ void CGameControllerHideAndSeek::DisplayBroadcast()
 			}
 			GameServer()->SendBroadcast(aBuf, -1);
 		}
-	}
 }
 
 void CGameControllerHideAndSeek::StartRound()
@@ -480,18 +479,45 @@ void CGameControllerHideAndSeek::MakeRandomSeeker(int Count)
 		if(!pPlayer)
 			continue;
 
+		bool Found = false;
+		for(const int &pLastSeekerId : m_vLastSeekersIds)
+		{
+			if(pLastSeekerId == pPlayer->GetCid())
+				Found = true;
+		}
+		if(Found)
+		{
+			continue;
+		}
+
 		if(!pPlayer->m_IsDead)
 			aPlayingIds[Players++] = pPlayer->GetCid();
 	}
 
+	if(!m_vLastSeekersIds.empty() && aPlayingIds[0] < 0)
+	{
+		m_vLastSeekersIds.clear();
+		MakeRandomSeeker(Count); 
+		return;
+	}
+
 	std::shuffle(aPlayingIds, aPlayingIds + Players, M_S_RANDOM_ENGINE);
 	if(Count > Players)
+	{
+		if(!m_vLastSeekersIds.empty())
+		{
+			m_vLastSeekersIds.clear();
+			MakeRandomSeeker(Count);
+			return;
+		}
 		Count = Players;
+	}
 
 	for(int i = 0; i < Count; i++)
 	{
 		GameServer()->m_apPlayers[aPlayingIds[i]]->m_Seeker = true;
-		m_vSeekerIds.emplace_back(aPlayingIds[i]);
+		m_vSeekerIds.push_back(aPlayingIds[i]);
+		m_vLastSeekersIds.push_back(aPlayingIds[i]);
 	}
 }
 

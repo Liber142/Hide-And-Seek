@@ -34,6 +34,7 @@ private:
 	int m_CurTime;
 
 	std::vector<int> m_vSeekerIds; //TODO: In future we need one more seekers
+	std::vector<int> m_vLastSeekersIds;
 	
 	int m_StartStartingTick;
 	int m_StartingTime; // TODO: Move in to Config();
