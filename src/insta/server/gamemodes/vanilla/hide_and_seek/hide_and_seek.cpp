@@ -43,6 +43,12 @@ void CGameControllerHideAndSeek::OnCharacterSpawn(class CCharacter *pChr)
 	// give default weapons
 	pChr->GiveWeapon(WEAPON_HAMMER, false, -1);
 	pChr->GiveWeapon(WEAPON_GUN, false, -1);
+	if(m_GameState == RUNNING)
+	{
+		pChr->Pause(true);
+		if(pChr->GetPlayer())
+			pChr->GetPlayer()->Pause(CPlayer::PAUSE_SPEC, true);
+	}
 }
 
 void CGameControllerHideAndSeek::OnInit()
@@ -63,7 +69,7 @@ void CGameControllerHideAndSeek::Tick()
 
 		const float TotalTicks = Server()->TickSpeed() * Config()->m_SvAbilityCoolDown;
 		const int PassedTicks = Server()->Tick() - pPlayer->m_LastUseAbilityTick;
-		const int Armor = static_cast<int>(std::ceil((PassedTicks / TotalTicks) * 10.0f));
+		const int Armor = static_cast<int>((PassedTicks / TotalTicks) * 10.0f);
 		pPlayer->GetCharacter()->SetArmor(Armor);
 	}
 
@@ -103,6 +109,8 @@ void CGameControllerHideAndSeek::Tick()
 			}
 		}
 
+		HidePlayers();
+
 		if((Server()->Tick() - m_StartCountigTick) / Server()->TickSpeed() >= Config()->m_SvCountingTime)
 		{
 			for(const int &SeekerId : m_vSeekerIds)
@@ -128,7 +136,7 @@ void CGameControllerHideAndSeek::Tick()
 	if(m_GameState == ENDING)
 	{
 		m_StartStartingTick = Server()->Tick();
-		m_GameState = STARTING;
+		m_GameState = WAITING;
 	}
 
 	m_CurTime = Server()->Tick() / Server()->TickSpeed();
@@ -186,12 +194,7 @@ void CGameControllerHideAndSeek::EndRound()
 
 		if((Server()->Tick() - m_StartRoundTick) >= (Config()->m_SvRoundTime * Server()->TickSpeed()))
 		{
-			if(pPlayer->IsPlaying() && !pPlayer->m_Seeker)
-				pPlayer->IncrementScore();
-		}
-		else
-		{
-			if(pPlayer->m_Seeker)
+			if(pPlayer->IsPlaying() && !pPlayer->m_Seeker && !pPlayer->IsPaused() && !pPlayer->m_IsDead)
 				pPlayer->IncrementScore();
 		}
 	}	
@@ -208,10 +211,23 @@ void CGameControllerHideAndSeek::EndRound()
 bool CGameControllerHideAndSeek::DoEndRound()
 {
 	int CountLive = 0;
+	int CountSeekers = 0;
 	for(const CPlayer *pPlayer : GameServer()->m_apPlayers)
-		if(pPlayer && !pPlayer->IsPaused() && !pPlayer->m_Seeker)
+	{
+		if(!pPlayer)
+			continue;
+
+		if(!pPlayer->IsPaused() && !pPlayer->m_Seeker && pPlayer->GetTeam() != TEAM_SPECTATORS)
+		{
 			CountLive++;
-	if(CountLive <= 0)
+		}
+		if(!pPlayer->IsPaused() && pPlayer->m_Seeker && pPlayer->GetTeam() != TEAM_SPECTATORS)
+		{
+			CountSeekers++;
+		}
+	}
+		
+	if(CountLive <= 0 || CountSeekers <= 0)
 	{
 		return true;
 	}
@@ -284,19 +300,21 @@ void CGameControllerHideAndSeek::SetSkin(CPlayer *pPlayer)
 
 	if(pPlayer->m_Hiden)
 	{
-		pPlayer->m_SkinInfoManager.SetSkinName(ESkinPrio::HIGH, "ghost");
+		pPlayer->m_SkinInfoManager.SetSkinName(ESkinPrio::HIGH, Config()->m_SvHidenSkin);
 		return;
 	}
 
 	if(pPlayer->m_Seeker)
 	{
-		pPlayer->m_SkinInfoManager.SetSkinName(ESkinPrio::HIGH, "wartee");
+		pPlayer->m_SkinInfoManager.SetSkinName(ESkinPrio::HIGH, Config()->m_SvSeekerSkin);
 		return;
 	}
 
-	if(pPlayer->IsPaused())
+	char aBuf[16];
+	pPlayer->m_SkinInfoManager.SkinName(aBuf, sizeof(aBuf));
+	if(!str_comp(aBuf, Config()->m_SvSeekerSkin) || !str_comp(aBuf, Config()->m_SvHidenSkin))
 	{
-		pPlayer->m_SkinInfoManager.SetSkinName(ESkinPrio::HIGH, "x_spec");
+		pPlayer->m_SkinInfoManager.SetSkinName(ESkinPrio::HIGH, "default");
 		return;
 	}
 
@@ -312,61 +330,15 @@ bool CGameControllerHideAndSeek::OnFireWeapon(CCharacter &Character, int &Weapon
 		Character.GetPlayer()->m_HideTime = 3 * Server()->TickSpeed();
 		GameServer()->CreateSound(Character.GetPos(), SOUND_PLAYER_PAIN_LONG);
 		Character.GetPlayer()->m_LastUseAbilityTick = Server()->Tick();
-		return false;
+		return true;
 	}
 
 	if(Weapon == WEAPON_GUN && Character.GetPlayer() && Character.GetPlayer()->m_Seeker)
 	{
 		if(Character.GetPlayer() && Server()->Tick() - Character.GetPlayer()->m_LastUseAbilityTick < Config()->m_SvAbilityCoolDown * Server()->TickSpeed())
 			return CGameControllerBasePvp::OnFireWeapon(Character, Weapon, Direction, MouseTarget, ProjStartPos);
-		
-		CPlayer *pClosest = nullptr;
-		float MinDist = 999999.0f;
-		vec2 Pos = Character.GetPos();
-
-		for(CPlayer *p : GameServer()->m_apPlayers)
-		{
-			if(!p || p->m_Seeker || !p->IsPlaying() || !p->GetCharacter() || p->IsPaused())
-				continue;
-			
-			float Dist = distance(p->GetCharacter()->GetPos(), Pos);
-			if(Dist < MinDist)
-			{
-				MinDist = Dist;
-				pClosest = p;
-			}
-		}
-
-		if(pClosest)
-		{
-			GameServer()->CreatePlayerSpawn(pClosest->GetCharacter()->GetPos());
-			GameServer()->CreateSound(pClosest->GetCharacter()->GetPos(), SOUND_NINJA_FIRE);
-			
-			vec2 TargetPos = pClosest->GetCharacter()->GetPos();
-			vec2 NewDirection = normalize(TargetPos - ProjStartPos);
-			
-			int Lifetime = (int)(Server()->TickSpeed() * Character.GetTuning(Character.m_TuneZone)->m_GunLifetime);
-			
-			new CVanillaProjectile(
-				Character.GameWorld(),
-				WEAPON_GUN,
-				Character.GetPlayer()->GetCid(),
-				ProjStartPos,
-				NewDirection,
-				Lifetime,
-				false,
-				false,
-				-1,
-				NewDirection
-			);
-			
-			Character.GetPlayer()->m_LastUseAbilityTick = Server()->Tick();
-			return true;
-		}
-		else
-		{
-			return CGameControllerBasePvp::OnFireWeapon(Character, Weapon, Direction, MouseTarget, ProjStartPos);
-		}
+		SeekerAbility(Character.GetPlayer());
+		return true;
 	}
 
 	return CGameControllerBasePvp::OnFireWeapon(Character, Weapon, Direction, MouseTarget, ProjStartPos);
@@ -394,14 +366,19 @@ bool CGameControllerHideAndSeek::OnCharacterTakeDamage(vec2 &Force, int &Dmg, in
 		Dmg = 0;
 	}
 
-	const CPlayer *pPlayer = GetPlayerOrNullptr(From);
+	CPlayer *pPlayer = GetPlayerOrNullptr(From);
 	if(Weapon == WEAPON_HAMMER && pPlayer && pPlayer->m_Seeker && Character.GetPlayer())
 	{
 		if(!Character.IsPaused())
 		{
+			pPlayer->IncrementScore();
 			Character.Pause(true);
 			Character.GetPlayer()->Pause(CPlayer::PAUSE_SPEC, true);
 		}
+	}
+	if(Weapon == WEAPON_SHOTGUN && pPlayer && pPlayer->m_Seeker && Character.GetPlayer())
+	{
+		Character.Freeze(1);
 	}
 	return ApplyForce;
 }
@@ -425,7 +402,7 @@ bool CGameControllerHideAndSeek::ForceNetworkClipping(const CEntity *pEntity, in
     if(pChr && pChr->GetPlayer() && pChr->GetPlayer()->GetCid() != SnappingClient)
 	{
 		const CPlayer *pPlayer = GameServer()->m_apPlayers[SnappingClient];
-		if(m_GameState == COUNTING && pPlayer && pPlayer->m_Seeker)
+		if(m_GameState == COUNTING && pPlayer && pPlayer->m_Seeker && pChr->GetPlayer() && !pChr->GetPlayer()->m_Seeker)
 		{
 			return true;	
 		}
@@ -436,6 +413,57 @@ bool CGameControllerHideAndSeek::ForceNetworkClipping(const CEntity *pEntity, in
 	}
 
 	return CGameControllerBasePvp::ForceNetworkClipping(pEntity, SnappingClient, CheckPos);
+}
+
+void CGameControllerHideAndSeek::SeekerAbility(CPlayer *pPlayer)
+{
+	if(!pPlayer)
+		return;
+
+	CCharacter *pChr = pPlayer->GetCharacter();
+	if(!pChr)
+		return;
+
+	CPlayer *pClosest = nullptr;
+	float MinDist = 999999.0f;
+	vec2 Pos = pChr->GetPos();
+
+	for(CPlayer *p : GameServer()->m_apPlayers)
+	{
+		if(!p || p->m_Seeker || !p->IsPlaying() || !p->GetCharacter() || p->IsPaused())
+			continue;
+		
+		float Dist = distance(p->GetCharacter()->GetPos(), Pos);
+		if(Dist < MinDist)
+		{
+			MinDist = Dist;
+			pClosest = p;
+		}
+	}
+
+	if(pClosest)
+	{
+		GameServer()->CreatePlayerSpawn(pClosest->GetCharacter()->GetPos());
+		GameServer()->CreateSound(pClosest->GetCharacter()->GetPos(), SOUND_NINJA_FIRE);
+		
+		vec2 TargetPos = pClosest->GetCharacter()->GetPos();
+		vec2 NewDirection = normalize(TargetPos - pChr->GetPos());
+		
+		new CVanillaProjectile(
+			pChr->GameWorld(),
+			WEAPON_SHOTGUN, //Type
+			pPlayer->GetCid(), //Owner
+			pChr->GetPos(), //Pos
+			NewDirection, //Dir
+			999, //Span
+			false, //Freeze
+			false, //Explosive
+			-1, //SoundImpact
+			NewDirection //InitDir
+		);
+		
+		pChr->GetPlayer()->m_LastUseAbilityTick = Server()->Tick();
+	}
 }
 
 void CGameControllerHideAndSeek::MakeRandomSeeker(int Count)

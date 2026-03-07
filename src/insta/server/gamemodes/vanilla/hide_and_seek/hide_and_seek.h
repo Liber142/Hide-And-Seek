@@ -52,6 +52,8 @@ private:
 	
 	void SetSkin(class CPlayer *pPlayer);
 
+	void SeekerAbility(class CPlayer *pPlayer);
+
 	bool IsTimeInterval(const int Seconds) const { return Server()->Tick() % (Server()->TickSpeed() * Seconds) == 0; }
 	static std::mt19937 M_S_RANDOM_ENGINE;
 };
