@@ -369,7 +369,7 @@ public:
 
 	//hide and seek
 	int m_HideTime = 0; 
-	bool m_Hiden = false;
+	bool m_Hidden = false;
 	bool m_Seeker = false;
 
 	int m_LastUseAbilityTick = 0;

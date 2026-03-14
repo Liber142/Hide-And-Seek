@@ -49,6 +49,7 @@ private:
 	void KillAllPlayers();
 
 	void HidePlayers();
+	bool IsHookedByOther(class CPlayer *pPlayer);
 	void MakeRandomSeeker(int Count);
 	
 	void SetSkin(class CPlayer *pPlayer);

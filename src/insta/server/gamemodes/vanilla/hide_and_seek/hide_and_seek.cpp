@@ -13,9 +13,11 @@
 
 #include <random>
 
-std::mt19937 CGameControllerHideAndSeek::M_S_RANDOM_ENGINE(std::random_device{}());
+std::mt19937 
+CGameControllerHideAndSeek::M_S_RANDOM_ENGINE(std::random_device{}());
 
-CGameControllerHideAndSeek::CGameControllerHideAndSeek(CGameContext *pGameServer) :
+CGameControllerHideAndSeek::CGameControllerHideAndSeek(
+	CGameContext *pGameServer) :
 	CGameControllerBasePvp(pGameServer)
 {
 	// if you do not need team red/blue or the red and blue flag from ctf
@@ -36,7 +38,8 @@ CGameControllerHideAndSeek::CGameControllerHideAndSeek(CGameContext *pGameServer
 
 CGameControllerHideAndSeek::~CGameControllerHideAndSeek() = default;
 
-void CGameControllerHideAndSeek::OnCharacterSpawn(class CCharacter *pChr)
+void 
+CGameControllerHideAndSeek::OnCharacterSpawn(class CCharacter *pChr)
 {
 	CGameControllerBasePvp::OnCharacterSpawn(pChr);
 
@@ -51,11 +54,13 @@ void CGameControllerHideAndSeek::OnCharacterSpawn(class CCharacter *pChr)
 	}
 }
 
-void CGameControllerHideAndSeek::OnInit()
+void 
+CGameControllerHideAndSeek::OnInit()
 {
 }
 
-void CGameControllerHideAndSeek::Tick()
+void 
+CGameControllerHideAndSeek::Tick()
 {
 	for(CPlayer *pPlayer : GameServer()->m_apPlayers)
 	{
@@ -145,7 +150,8 @@ void CGameControllerHideAndSeek::Tick()
 		DisplayBroadcast();
 }
 
-void CGameControllerHideAndSeek::DisplayBroadcast()
+void 
+CGameControllerHideAndSeek::DisplayBroadcast()
 {
 		if(m_GameState == WAITING)
 			GameServer()->SendBroadcast("Waiting others                                                                                                        ", -1);
@@ -184,11 +190,13 @@ void CGameControllerHideAndSeek::DisplayBroadcast()
 		}
 }
 
-void CGameControllerHideAndSeek::StartRound()
+void 
+CGameControllerHideAndSeek::StartRound()
 {
 }
 
-void CGameControllerHideAndSeek::EndRound()
+void 
+CGameControllerHideAndSeek::EndRound()
 {
 	for(CPlayer *pPlayer : GameServer()->m_apPlayers)
 	{
@@ -211,7 +219,8 @@ void CGameControllerHideAndSeek::EndRound()
 	m_vSeekerIds.clear();
 }
 
-bool CGameControllerHideAndSeek::DoEndRound()
+bool 
+CGameControllerHideAndSeek::DoEndRound()
 {
 	int CountLive = 0;
 	int CountSeekers = 0;
@@ -243,46 +252,58 @@ bool CGameControllerHideAndSeek::DoEndRound()
 	return false;
 }
 
-void CGameControllerHideAndSeek::HidePlayers()
+void 
+CGameControllerHideAndSeek::HidePlayers()
 {
 	for(CPlayer *pPlayer : GameServer()->m_apPlayers)
 	{
-		if(!pPlayer)
+		if(!pPlayer || !pPlayer->GetCharacter())
 			continue;
+
+		auto Hide = [pPlayer](bool Hide){
+			pPlayer->GetCharacter()->SetCollisionDisabled(Hide);
+			pPlayer->m_Hidden = Hide;
+		};
 
 		if(pPlayer->m_HideTime > 0)
 		{
-			if(pPlayer->GetCharacter())
-				pPlayer->GetCharacter()->SetCollisionDisabled(true);
-			pPlayer->m_Hiden = true;
+			Hide(true);
 			pPlayer->m_HideTime--;
 		}
 		else 
-		{
-			if(pPlayer->GetCharacter())
-				pPlayer->GetCharacter()->SetCollisionDisabled(false);
-			pPlayer->m_Hiden = false;
-		}
+			Hide(false);
 
-		for(CPlayer *pOtherPlayer : GameServer()->m_apPlayers)
-		{
-			if(!pOtherPlayer || pOtherPlayer->GetCid() == pPlayer->GetCid())
-				continue;
-
-			if(pOtherPlayer->GetCharacter() && pOtherPlayer->m_Seeker)
-			{
-				CPlayer *pHookedPlayer = GetPlayerOrNullptr(pOtherPlayer->GetCharacter()->HookedPlayer());
-				if(pHookedPlayer && pHookedPlayer->GetCid() == pPlayer->GetCid())
-				{
-					pPlayer->GetCharacter()->SetCollisionDisabled(false);
-					pPlayer->m_Hiden = false;
-				}
-			}
-		}
+		if(IsHookedByOther(pPlayer))
+			Hide(false);
 	}
 }
 
-void CGameControllerHideAndSeek::KillAllPlayers()
+bool
+CGameControllerHideAndSeek::IsHookedByOther(CPlayer *pPlayer)
+{
+	for(CPlayer *pOtherPlayer : GameServer()->m_apPlayers)
+	{
+		if(!pOtherPlayer || pOtherPlayer->GetCid() == pPlayer->GetCid())
+			continue;
+
+		if(pOtherPlayer->GetCharacter() && pOtherPlayer->m_Seeker)
+		{
+			CPlayer *pHookedPlayer = GetPlayerOrNullptr(
+				pOtherPlayer->GetCharacter()->HookedPlayer());
+			if(!pHookedPlayer)
+				continue;
+			if(pHookedPlayer->GetCid() == pPlayer->GetCid())
+			{
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+void 
+CGameControllerHideAndSeek::KillAllPlayers()
 {
 	for(CPlayer *pPlayer : GameServer()->m_apPlayers)
 	{
@@ -296,26 +317,30 @@ void CGameControllerHideAndSeek::KillAllPlayers()
 	}
 }
 
-void CGameControllerHideAndSeek::SetSkin(CPlayer *pPlayer)
+void 
+CGameControllerHideAndSeek::SetSkin(CPlayer *pPlayer)
 {
 	if(!pPlayer)
 		return;
 
-	if(pPlayer->m_Hiden)
+	if(pPlayer->m_Hidden)
 	{
-		pPlayer->m_SkinInfoManager.SetSkinName(ESkinPrio::HIGH, Config()->m_SvHidenSkin);
+		pPlayer->m_SkinInfoManager.SetSkinName(
+			ESkinPrio::HIGH, Config()->m_SvHiddenSkin);
 		return;
 	}
 
 	if(pPlayer->m_Seeker)
 	{
-		pPlayer->m_SkinInfoManager.SetSkinName(ESkinPrio::HIGH, Config()->m_SvSeekerSkin);
+		pPlayer->m_SkinInfoManager.SetSkinName(
+			ESkinPrio::HIGH, Config()->m_SvSeekerSkin);
 		return;
 	}
 
 	char aBuf[16];
 	pPlayer->m_SkinInfoManager.SkinName(aBuf, sizeof(aBuf));
-	if(!str_comp(aBuf, Config()->m_SvSeekerSkin) || !str_comp(aBuf, Config()->m_SvHidenSkin))
+	if(str_comp(aBuf, Config()->m_SvSeekerSkin) == 0 
+		|| str_comp(aBuf, Config()->m_SvHiddenSkin) == 0)
 	{
 		pPlayer->m_SkinInfoManager.SetSkinName(ESkinPrio::HIGH, "default");
 		return;
@@ -324,7 +349,9 @@ void CGameControllerHideAndSeek::SetSkin(CPlayer *pPlayer)
 	pPlayer->m_SkinInfoManager.UnsetAll(ESkinPrio::HIGH);
 }
 
-bool CGameControllerHideAndSeek::OnFireWeapon(CCharacter &Character, int &Weapon, vec2 &Direction, vec2 &MouseTarget, vec2 &ProjStartPos) 
+bool
+CGameControllerHideAndSeek::OnFireWeapon(
+	CCharacter &Character, int &Weapon, vec2 &Direction, vec2 &MouseTarget, vec2 &ProjStartPos) 
 {
 	if(Weapon == WEAPON_GUN && Character.GetPlayer() && !Character.GetPlayer()->m_Seeker)
 	{
@@ -347,7 +374,9 @@ bool CGameControllerHideAndSeek::OnFireWeapon(CCharacter &Character, int &Weapon
 	return CGameControllerBasePvp::OnFireWeapon(Character, Weapon, Direction, MouseTarget, ProjStartPos);
 }
 
-bool CGameControllerHideAndSeek::SkipDamage(int Dmg, int From, int Weapon, const CCharacter *pCharacter, bool &ApplyForce) 
+bool 
+CGameControllerHideAndSeek::SkipDamage(
+	int Dmg, int From, int Weapon, const CCharacter *pCharacter, bool &ApplyForce) 
 {
 	const CPlayer *pPlayer = GetPlayerOrNullptr(From);
 	if(m_GameState == RUNNING || m_GameState == COUNTING)
@@ -360,7 +389,9 @@ bool CGameControllerHideAndSeek::SkipDamage(int Dmg, int From, int Weapon, const
 	return true;
 }
 
-bool CGameControllerHideAndSeek::OnCharacterTakeDamage(vec2 &Force, int &Dmg, int &From, int &Weapon, CCharacter &Character) 
+bool 
+CGameControllerHideAndSeek::OnCharacterTakeDamage(
+	vec2 &Force, int &Dmg, int &From, int &Weapon, CCharacter &Character) 
 {
 	bool ApplyForce = false;
 
@@ -370,16 +401,23 @@ bool CGameControllerHideAndSeek::OnCharacterTakeDamage(vec2 &Force, int &Dmg, in
 	}
 
 	CPlayer *pPlayer = GetPlayerOrNullptr(From);
-	if(Weapon == WEAPON_HAMMER && pPlayer && pPlayer->m_Seeker && Character.GetPlayer())
+	if(!pPlayer || !Character.GetPlayer())
+		return ApplyForce;
+
+	if(Weapon == WEAPON_HAMMER 
+		&& pPlayer->m_Seeker 
+		&& !Character.GetPlayer()->m_Seeker)
 	{
 		if(!Character.IsPaused())
 		{
 			pPlayer->IncrementScore();
 			Character.Pause(true);
 			Character.GetPlayer()->Pause(CPlayer::PAUSE_SPEC, true);
+			SendDeathInfoMessage(&Character, pPlayer->GetCid(), Weapon, 0);
+			SendDeathEvent(&Character, pPlayer->GetCid(), Weapon);
 		}
 	}
-	if(Weapon == WEAPON_SHOTGUN && pPlayer && pPlayer->m_Seeker && Character.GetPlayer())
+	if(Weapon == WEAPON_SHOTGUN && pPlayer->m_Seeker)
 	{
 		Character.Freeze(1);
 	}
@@ -387,9 +425,12 @@ bool CGameControllerHideAndSeek::OnCharacterTakeDamage(vec2 &Force, int &Dmg, in
 }
 
 
-void CGameControllerHideAndSeek::HandleCharacterTiles(CCharacter *pChr, int MapIndex)
+void 
+CGameControllerHideAndSeek::HandleCharacterTiles(
+	CCharacter *pChr, int MapIndex)
 {
-	if(pChr && pChr->GetPlayer() && GameServer()->Collision()->GetSwitchType(MapIndex) == TILE_FREEZE)
+	if(pChr && pChr->GetPlayer() 
+		&& GameServer()->Collision()->GetSwitchType(MapIndex) == TILE_FREEZE)
 	{
 		if(!pChr->GetPlayer()->m_Seeker)
 		{
@@ -399,26 +440,42 @@ void CGameControllerHideAndSeek::HandleCharacterTiles(CCharacter *pChr, int MapI
 	}
 }
 
-bool CGameControllerHideAndSeek::ForceNetworkClipping(const CEntity *pEntity, int SnappingClient, vec2 CheckPos) 
+bool 
+CGameControllerHideAndSeek::ForceNetworkClipping(
+	const CEntity *pEntity, int SnappingClient, vec2 CheckPos) 
 {
+	auto CallParent = [this, pEntity, SnappingClient, CheckPos]() {
+		return CGameControllerBasePvp::ForceNetworkClipping(
+			pEntity, SnappingClient, CheckPos
+		);
+	};
+
     const CCharacter *pChr = dynamic_cast<const CCharacter*>(pEntity);
-    if(pChr && pChr->GetPlayer() && pChr->GetPlayer()->GetCid() != SnappingClient)
+	if(!pChr || !pChr->GetPlayer())
+		return CallParent();
+
+    if(pChr->GetPlayer()->GetCid() != SnappingClient)
 	{
 		const CPlayer *pPlayer = GameServer()->m_apPlayers[SnappingClient];
-		if(m_GameState == COUNTING && pPlayer && pPlayer->m_Seeker && pChr->GetPlayer() && !pChr->GetPlayer()->m_Seeker)
+		if(!pPlayer)
+			return CallParent();
+			
+		if(m_GameState == COUNTING && pPlayer->m_Seeker 
+			&& !pChr->GetPlayer()->m_Seeker)
 		{
 			return true;	
 		}
-		if(pPlayer && pPlayer->m_Seeker)
+		if(pPlayer->m_Seeker)
 		{
-			return pChr->GetPlayer()->m_Hiden;
+			return pChr->GetPlayer()->m_Hidden;
 		}
 	}
 
-	return CGameControllerBasePvp::ForceNetworkClipping(pEntity, SnappingClient, CheckPos);
+	return CallParent();
 }
 
-void CGameControllerHideAndSeek::SeekerAbility(CPlayer *pPlayer)
+void 
+CGameControllerHideAndSeek::SeekerAbility(CPlayer *pPlayer)
 {
 	if(!pPlayer)
 		return;
@@ -469,7 +526,8 @@ void CGameControllerHideAndSeek::SeekerAbility(CPlayer *pPlayer)
 	}
 }
 
-void CGameControllerHideAndSeek::MakeRandomSeeker(int Count)
+void 
+CGameControllerHideAndSeek::MakeRandomSeeker(int Count)
 {
 	int aPlayingIds[MAX_CLIENTS] = {-1};
 	int Players = 0;
@@ -510,7 +568,7 @@ void CGameControllerHideAndSeek::MakeRandomSeeker(int Count)
 			MakeRandomSeeker(Count);
 			return;
 		}
-		Count = Players;
+		Count = Players - 1;
 	}
 
 	for(int i = 0; i < Count; i++)
